@@ -15,13 +15,13 @@
 Для того чтобы собрать модуль ядра необходимо зайти в директорию где лежит Makefile и выполнить команду:
 
 ```console
-yan@hp:~/ZedBoard_Leds/u-boot/boot_files/drivers$ make
+yan@hp:~/ZedBoard_Leds/u-boot/boot_files/drivers$ **make**
 ```
 
 После этой команды в директории `drivers` появится модуль ядра: `myled.ko`. Если хотим пересобрать модуль ядра, то для начала стоит выполнить:
 
 ```console
-yan@hp:~/ZedBoard_Leds/u-boot/boot_files/drivers$ make clean
+yan@hp:~/ZedBoard_Leds/u-boot/boot_files/drivers$ **make clean**
 ```
 
-И после этого уже опять собрать модуль ядра.
+И после этого уже опять собирать модуль ядра.
