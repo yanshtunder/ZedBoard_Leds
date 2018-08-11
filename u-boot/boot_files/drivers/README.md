@@ -7,11 +7,11 @@
 Для того, чтобы создать виртуальный файл в файловой системе `/proc`, используется функция ___proc_create___.
 Функция возвращает указатель на структуру ___proc_dir_entry___ (или ___NULL___ в случае возникновения ошибки).
 
-- Прототип функции ___proc_create___ для ___создания___ файла в /proc:
+- Прототип функции ___proc_create___ для ___создания___ файла в `/proc`:
 ```C
 struct proc_dir_entry *proc_create(const char *name, umode_t mode, struct proc_dir_entry *parent, const struct file_operations *proc_fops);
 
- 
+
 const char *name			   // имя созаваемого файла
 
 umode_t mode				   // режим доступа к файлу
@@ -50,7 +50,7 @@ struct proc_dir_entry
 ```C
 void remove_proc_entry(const char *name, struct proc_dir_entry *parent);
 ```
-При вызове в эту функцию передается строка, содержащая имя удаляемого файла и его местоположение в файловой системе /proc (родительский каталог)
+При вызове в эту функцию передается строка, содержащая имя удаляемого файла и его местоположение в файловой системе `/proc` (родительский каталог)
 ____________________________________________
  
 ## Форматированный вывод printf()
@@ -108,7 +108,7 @@ void *ioremap(unsigned long phys_addr, unsigned long size);
 ```C
 void iounmap(void *addr); 
 ```
-Функции определены в файле <asm/io.h>
+Функции определены в файле `<asm/io.h>`
 
 ____________________________________________
 
