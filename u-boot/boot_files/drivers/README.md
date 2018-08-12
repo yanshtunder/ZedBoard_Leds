@@ -124,7 +124,14 @@ static int myled_probe(struct platform_device *pdev)
 
 	struct proc_dir_entry *myled_proc_entry;
 	int ret = 0;		// Переменная для отображения ошибки отработки функции
-
+	
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+     	if (!res)
+	{
+        	dev_err(&pdev->dev, "No memory resource\n");
+        	return -ENODEV;
+     	}
+	
 	remap_size = res->end - res->start + 1;
 	if (!request_mem_region(res->start, remap_size, pdev->name))
 	{
@@ -164,4 +171,58 @@ static int myled_probe(struct platform_device *pdev)
 	
 	return ret;
 }
+```
+__________________________________________
+
+## Соединение физического устройства из Device Tree с дравйвером
+
+- Пусть есть такое описание устройства в `Device Tree`:
+```console
+auart0: serial@8006a000 {
+	Позволяет операционной системе идентифицировать соответствующий драйвер устройства. 
+    	compatible = "fsl,imx28-aurt", "fsl,imx23-aurt";
+    	Адрес и длина области регистров
+    	reg = <0x8006a000 0x2000>;
+    	Номер прерывания.
+    	interrupts = <112>;
+    	Механизм DMA и каналы, с именами.
+    	dmas = <&dma_apbx 8>, <&dma_apbx 9>;
+    	dma-names = "rx", "tx";
+    	Описание тактирования.
+    	clocks = <&clks 45>;
+    	Устройство не используется.
+    	status = "disabled";
+};
+```
+- Необходимо чтобы операционная система идентифицировала соответствующий драйвер для нашего устройства. Обычно для этого физическое устройство статически описывают. Код для связывания устройства с драйвером приведен ниже.
+
+```C
+#define DRIVER_NAME "myled"
+....
+
+/* device match table to match with device node in device tree */
+static const struct of_device_id myled_of_match[] = {
+	{.compatible = "xlnx,myled-1.0"},
+     	{},
+};
+ 
+MODULE_DEVICE_TABLE(of, myled_of_match);
+ 
+/* platform driver structure for myled driver */
+static struct platform_driver myled_driver = {
+	.driver = {
+        	.name = DRIVER_NAME,
+         	.owner = THIS_MODULE,
+            	.of_match_table = myled_of_match},
+     	.probe = myled_probe,
+     	.remove = myled_remove,
+     	.shutdown = myled_shutdown
+};
+
+/* Register myled platform driver */
+module_platform_driver(myled_driver);
+```
+
+```diff
+- Исправить для моего варианта !!!
 ```
