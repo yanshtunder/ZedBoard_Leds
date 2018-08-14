@@ -1,59 +1,63 @@
-## Создание и удаление виртуального файла в /proc
+## 1. Создание и удаление виртуального файла в /proc
 
 ```diff
 - Сейчас вместо create_proc_entry используется proc_create !!!
 ```
 
-Для того, чтобы создать виртуальный файл в файловой системе `/proc`, используется функция ___proc_create___.
+- Для того, чтобы создать виртуальный файл в файловой системе `/proc`, используется функция ___proc_create___.
 Функция возвращает указатель на структуру ___proc_dir_entry___ (или ___NULL___ в случае возникновения ошибки).
 
-- Прототип функции ___proc_create___ для ___создания___ файла в `/proc`:
-```C
-struct proc_dir_entry *proc_create(const char *name, umode_t mode, struct proc_dir_entry *parent, const struct file_operations *proc_fops);
+  - Прототип функции ___proc_create___ для ___создания___ файла в `/proc`:
+
+	```C
+	struct proc_dir_entry *proc_create(const char *name, umode_t mode, struct proc_dir_entry *parent, const struct file_operations *proc_fops);
+	
+	
+	const char *name			   // имя созаваемого файла
+							
+	umode_t mode				   // режим доступа к файлу
+						   // аргумент "0" устанавливает режим доступа 0444
+	
+	struct proc_dir_entry *parent		   // Один из подкаталогов в /proc куда разместится создаваемый файл.
+						   // Параметр parent принимает значение NULL если файл находится 
+						   // непосредственно в каталоге /proc или другое значение, соответствующее
+						   // каталогу, в который вы хотите поместить файл.
+					   		
+	const struct file_operations *proc_fops    // Этот аргумент указывает какие файловые операции будут выполняться с файлом.
+	```
 
 
-const char *name			   // имя созаваемого файла
+  - Фрагмент структуры `proc_dir_entry`:
+  
+	```C
+	struct proc_dir_entry
+	{
+		const char *name;           			// имя виртуального файла
+		mode_t mode;                			// режим доступа
+		uid_t uid;              			// уникальный номер пользователя - владельца файла
+		gid_t gid;           				// уникальный номер группы, которой принадлежит файл
+		
+		struct inode_operations *proc_iops; 		// функции-обработчики операций с inode
+		struct proc_dir_entry *parent;      		// родительский каталог
+		...
+		read_proc_t *read_proc;         		// функция чтения из /proc
+		write_proc_t *write_proc;       		// функция записи в /proc
+		void *data;             			// указатель на локальные данные
+		atomic_t count;             			// счетчик ссылок на файл
+		...
+	};
+	```
 
-umode_t mode				   // режим доступа к файлу
-					   // аргумент "0" устанавливает режим доступа 0444
-
-struct proc_dir_entry *parent		   // Один из подкаталогов в /proc куда разместится создаваемый файл.
-					   // Параметр parent принимает значение NULL если файл находится 
-					   // непосредственно в каталоге /proc или другое значение, соответствующее
-					   // каталогу, в который вы хотите поместить файл.
-					   
-const struct file_operations *proc_fops    // Этот аргумент указывает какие файловые операции будут выполняться с файлом.
-```
-
-
-- Фрагмент структуры `proc_dir_entry`:
-```C
-struct proc_dir_entry
-{
-	const char *name;           			// имя виртуального файла
-   	mode_t mode;                			// режим доступа
-  	uid_t uid;              			// уникальный номер пользователя - владельца файла
-   	gid_t gid;           				// уникальный номер группы, которой принадлежит файл
-
-   	struct inode_operations *proc_iops; 		// функции-обработчики операций с inode
-   	struct proc_dir_entry *parent;      		// родительский каталог
-   	...
-   	read_proc_t *read_proc;         		// функция чтения из /proc
-   	write_proc_t *write_proc;       		// функция записи в /proc
-   	void *data;             			// указатель на локальные данные
-   	atomic_t count;             			// счетчик ссылок на файл
-   	...
-};
-```
-
-- Прототип функции ___remove_proc_entry___ для ___удаления___ файла из `/proc`:
-```C
-void remove_proc_entry(const char *name, struct proc_dir_entry *parent);
-```
-При вызове в эту функцию передается строка, содержащая имя удаляемого файла и его местоположение в файловой системе `/proc` (родительский каталог)
+  - Прототип функции ___remove_proc_entry___ для ___удаления___ файла из `/proc`:
+  
+	```C
+	void remove_proc_entry(const char *name, struct proc_dir_entry *parent);
+	```
+	
+	При вызове в эту функцию передается строка, содержащая имя удаляемого файла и его местоположение в файловой системе `/proc` (родительский каталог)
 ____________________________________________
  
-## Форматированный вывод printf()
+## 2. Форматированный вывод printf()
 
 ```C
 int A = 1;
@@ -74,41 +78,48 @@ A = 0x00000001 and B = 0x00000002
 ____________________________________________
  
  
-## Использование памяти ввода/вывода
+## 3. Использование памяти ввода/вывода
  
-Основным механизмом используемым для обмена данными с устройствами, являются связанные с памятью регистры и память устройства.
-Оба называются памятью ввода/вывода, т.к. разница между регистрами и памятью для программного обеспечения не видна.  
+- Основным механизмом используемым для обмена данными с устройствами, являются связанные с памятью регистры и память устройства. Оба называются памятью ввода/вывода, т.к. разница между регистрами и памятью для программного обеспечения не видна.  
+
 - Области памяти ввода/вывода должны быть выделены до начала использования.
 
-- Прототип функции для получения области памяти является:
-```C
-struct resource *request_mem_region(unsigned long start, unsigned long len, char *name);
+  - Прототип функции для получения области памяти является:
+	
+	```C
+	struct resource *request_mem_region(unsigned long start, unsigned long len, char *name);
+	
+	char *name		// Имя устройства, за которым будут закреплены порты.
+	```
 
-char *name		// Имя устройства, за которым будут закреплены порты.
-```
+	Эта функция выделяет область памяти ___len___ байт, начиная со ___start___. Если все идет хорошо, то функция возвращает ___не NULL___ указатель.
 
-Эта функция выделяет область памяти ___len___ байт, начиная со ___start___. Если все идет хорошо, то функция возвращает ___не NULL___ указатель.
-Вся выделенная для ввода/вывода память перечислена в `/proc/iomem`. Определение искать в `<linux/ioport.h>`.
+  - Когда больше не нужна выделенная область памяти, она должна быть освобожденна с помощью:
+	
+	```C
+	void release_mem_region(unsigned long start, unsigned long len);
+	```
 
-
-- Когда больше не нужна выделенная область памяти, она должна быть освобожденна с помощью:
-```C
-void release_mem_region(unsigned long start, unsigned long len);
-```
+- Вся выделенная для ввода/вывода память перечислена в `/proc/iomem`. Определение искать в `<linux/ioport.h>`.
 ____________________________________________
 
-## Использование IOREMAP/IOUNMAP
+## 4. Использование IOREMAP/IOUNMAP
 
-После того как память выделена, необходимо сделать ремапинг физического адреса hardware IP с виртуальным адресом в пространстве ядра. Делается это с помощью функции  ___ioremap___.
-- Прототип функции ___ioremap___:
-```C
-void *ioremap(unsigned long phys_addr, unsigned long size);
-```
-- Виртуальный адрес, полученный с помощью ioremap, ___освобождается___ вызовом ___iounmap___.
-```C
-void iounmap(void *addr); 
-```
-Функции определены в файле `<asm/io.h>`
+- После того как память выделена, необходимо сделать ремапинг физического адреса hardware IP с виртуальным адресом в пространстве ядра. Делается это с помощью функции  ___ioremap___.
+
+  - Прототип функции ___ioremap___:
+	
+	```C
+	void *ioremap(unsigned long phys_addr, unsigned long size);
+	```
+	
+  - Виртуальный адрес, полученный с помощью ioremap, ___освобождается___ вызовом ___iounmap___.
+	
+	```C
+	void iounmap(void *addr); 
+	```
+	
+- Функции определены в файле `<asm/io.h>`
 
 ____________________________________________
 
@@ -174,165 +185,236 @@ static int myled_probe(struct platform_device *pdev)
 ```
 __________________________________________
 
-## Соединение физического устройства из Device Tree с драйвером
+## 5. Соединение физического устройства из Device Tree с драйвером
 
 - Пусть есть такое описание устройства в `Device Tree`:
-```console
-auart0: serial@8006a000 {
-	Позволяет операционной системе идентифицировать соответствующий драйвер устройства. 
-    	compatible = "fsl,imx28-aurt", "fsl,imx23-aurt";
-    	Адрес и длина области регистров
-    	reg = <0x8006a000 0x2000>;
-    	Номер прерывания.
-    	interrupts = <112>;
-    	Механизм DMA и каналы, с именами.
-    	dmas = <&dma_apbx 8>, <&dma_apbx 9>;
-    	dma-names = "rx", "tx";
-    	Описание тактирования.
-    	clocks = <&clks 45>;
-    	Устройство не используется.
-    	status = "disabled";
-};
-```
+	```console
+	auart0: serial@8006a000 {
+		Позволяет операционной системе идентифицировать соответствующий драйвер устройства. 
+    		compatible = "fsl,imx28-aurt", "fsl,imx23-aurt";
+    		Адрес и длина области регистров
+    		reg = <0x8006a000 0x2000>;
+    		Номер прерывания.
+    		interrupts = <112>;
+    		Механизм DMA и каналы, с именами.
+    		dmas = <&dma_apbx 8>, <&dma_apbx 9>;
+    		dma-names = "rx", "tx";
+    		Описание тактирования.
+    		clocks = <&clks 45>;
+    		Устройство не используется.
+    		status = "disabled";
+	};
+	```
 ```diff
 - Исправить для моего варианта !!!
 ```
 - Необходимо чтобы операционная система идентифицировала соответствующий драйвер для нашего устройства, которое описано в ___DTS___.
-1. Сначала необходимо получить доступ к устройству из __DTS__. Делается это следующим образом:
+  - Сначала необходимо получить доступ к устройству из ___DTS___. Делается это следующим образом:
+    
+	```C
+	static const struct of_device_id myled_of_match[] = {
+		{.compatible = "xlnx,myled-1.0"},
+     		{},
+	};
+	```
+
+	Что происходит в данном случае? Имя `myled_of_match[0].compatible` сравнивается со свойством узла,который описывает наше устройство, в DTS. Если совпадение произошло, то это устройство подсоединятся к ___виртуальной шине___ (___platform bus___).
+
+  - Драйвер запрашивает устройство с таким же именем на шине.
+ 	```C
+	static struct platform_driver myled_driver = {
+		.driver = {
+        		.name = DRIVER_NAME,
+         		.owner = THIS_MODULE,
+            		.of_match_table = myled_of_match},
+     		.probe = myled_probe,
+     		.remove = myled_remove,
+     		.shutdown = myled_shutdown
+	};
+	```
+	
+	Самая важная здесь строчка `.of_match_table = myled_of_match`. Благодаря ей драйвер понимает какое устройство он ищет на шине.
+*** 
+- Вообще шины можно разделить на два типа.
+
+  - ___Discover-able___  
+Такие шины, как PCI и USB, имеют встроенную способность обнаружения внешнего устройства. Когда устройство подключено к шине, оно получает уникальный идентификатор, который будет использоваться для дальнейшей связи с процессором. Устройство, сидящее на шине PCI/USB, может сообщить системе свое имя и где находятся его ресурсы (регистры и т.д). Таким образом, ядро автоматически понимает какие устройства ему доступны и каой использовать драйвер для найденного устройства.
+
+  - ___Non discover-able___  
+Embedded systems обычно не имеют сложных шин, которые могли бы автоматически найти устройство, которое присоединили к такой шине. Например: шины типа i2c или SPI. Таким образом, `Platform devices` сами по себе не поддаются обнаружению. Т.е. устройство не может сказать "Эй! Я присутствую!" программному обеспечению. Что делать?  
+Для это была введена ___виртуальная шина___ (___platform bus___). С одной стороны устройства подключаются к такой шине, а с другой - к шине присоединяются драйвера, которые запрашивают устройства с необходимым именем.
+
+- Рассмотрим второй случай на примере.
+  - Начнем с объявления своей структуры данных. В ней определим ресурсы, используемые нашим устройством.
+  
+	```C
+	struct test_platform_data {
+		char *name;
+		int id;
+		int bus_id;
+	};
+	```
+
+  - Сейчас я заполню экземпляр этой структуры соответствующими данными.
+
+	```C
+	static struct test_platform_data = {
+		.name = "test device data",
+		.id = 0,
+		.bus_id = -1,
+	};
+	```
+
+  - Теперь пришло время определить `Platform device`. В ядре Linux объявляется `struct platform_device` для регистрации устройства.
+
+	```C
+	ststic struct platform_device drivertest_device = {
+		.name = "drivertest",
+		.id = 0,
+		.dev = {
+			.release = drivertest_device_release,
+			.platform_data = &psudo_data,
+		},
+	};
+	```
+	
+	___Важным моментом является название устройства___. В моем случае имя моего устройства "drivertest". С помощью функции, которая показана ниже, зарегистрируем устройство.
+
+	```C
+	platform_device_register(&drivertest_device);
+	```
+
+  - Структура `struct platfrom_driver` используется для регистрации драйвера для устройства.
+
+	```C
+	static struct platform_driver drivertest_driver = {
+		.driver = {
+			.name = "drivertest",
+			.owner = THIS_MODULE,
+		},
+		.probe = drivertest_probe,
+		.remove = drivertest_remove,
+	};
+	```
+	
+	Имя драйвера должно совпадать с именем устройства. Linux kernel сравнивает имя драйвера с ранее определенным именем устройства. Если совпадение найдено, то вызывается функция `drivertest_probe`. Эта функция отвечает за инициализацию устройства.
+	
+  - В приведенном ниже фрагменте показана подпрограмма для функции `drivertest_probe`.
+
+	```C
+	static int drivertest_probe(struct platform_device *dev)
+	{
+		int ret;
+		struct test_platform_data *p = (struct test_platform_data *)dev->dev.platform_data;
+		printk(KERN_ALERT "Platform data->name: %s\n", p->name);
+		printk(KERN_ALERT "Platform data->id: %d\n", p->id);
+		printk(KERN_ALERT "Platform data->bus_id: %d\n", p->bus.id);
+		printk(KERN_ALERT "Probe device: %s\n", dev->name);
+		...
+	};
+
+	//https://kerneltweaks.wordpress.com/2014/03/30/
+	```
+	
+	В функции `drivertest_probe` я извлекаю данные о platform_data, которые назначаются устройству во время загрузки. Эта информация содержит всю информацию об устройстве. Результат показан ниже:
+
+	```console
+	[118971.277307] Platform data->name: test device data
+	[118971.277310] Platform data->id: 0
+	[118971.277312] Platform data->bus_id: -1
+	[118971.277314] Probe device: drivertest
+	```
+_____________________________________________
+
+## 6. Автозагрузка модуля
+
+- Автоматическая загрузка модулей ядра это удобная функция, поддерживаемая в Linux.
+
+  - Во время компиляции информация о поддержке устройства генерируется в объекте модуля драйвера. Драйвер начинает идентифицировать устройства, которые он знает. Взгляните на драйвер, который поддерживает карту Xircom CardBus Ethernet (`drivers/net/tulip/xircom_cb.c`) и найдите этот фрагмент:
+
+	```C
+	static struct pci_device_id xircom_pci_table[] = {
+		{0x115D, 0x0003, PCI_ANY_ID, PCI_ANY_ID,},
+  		{0,},
+	};
+
+	MODULE_DEVICE_TABLE(pci, xircom_pci_table);
+	```
+	
+	Этот код показывает, что драйвер может поддерживать любую карту, имеющую __PCI vendor ID__ 0x115D и __PCI device ID__ 0x0003. Когда устанавливается модуль драйвера, утилита `depmod` просматривает изображение модуля и расшифровывает идентификаторы, присутствующие в таблице устройств. Затем эта утилита добавляет следующую запись в `/lib/modules/kernel-version/modules.alias` (__v обозначает VendorID, d обозначает DeviceID, sv обозначает subvendorID__):
+
+	```console
+	alias pci:v0000115Dd00000003sv*sd*bc*sc*i* xircom_cb
+	```
+
+  - Когда вы включаете карту Xircom в гнездо CardBus, ядро генерирует событие ___uevent___, которое идентифицирует недавно добавленное устройство. Вы можете посмотреть созданные события с помощью `udevmonitor`:
+
+	```console
+	$ udevmonitor ––env
+	...
+	MODALIAS=pci:v0000115Dd00000003sv0000115Dsd00001181bc02sc00i00
+	...
+	```
+	
+  - Затем `udevd` получает `uevents` через сетевые сокеты. Событие `udevd` вызывает `modprobe` с информацией `MODALIAS`, которую ядро передало `udevd`:
+
+	```console
+	modprobe pci:v0000115Dd00000003sv0000115Dsd00001181bc02sc00i00
+	```
+
+  - `modprobe` ищет совпадение в `/lib/modules/kernel-version/modules.alias` и переходит к вставленному `xircom_cb`:
+
+	```console
+	$ lsmod
+	Module      Size   Used by
+	xircom_cb   10433  0
+	...
+	```
+
+- После этого карта готова к использованию.
+_____________________________________________
+
+## 7. Регистрация драйвера
+
+- Регистрация дравера происходит с помощью макроса, который приведен ниже.
+	
+	```C
+	#define module_platform_driver(__platform_driver)	module_driver(__platform_driver, platform_driver_register, platform_driver_unregister)
+	```
+
+_____________________________________________
+
+## Пример
+
 ```C
+#define DRIVER_NAME "myled"
+....
+
+/* device match table to match with device node in device tree */
 static const struct of_device_id myled_of_match[] = {
 	{.compatible = "xlnx,myled-1.0"},
      	{},
 };
-```
-Что происходит в данном случае? Имя myled_of_match[0].compatible сравнивается со свойством узла,который описывает наше устройство, в DTS. Если совпадение произошло, то это устройство подсоединятся к ___виртуальной шине___ (___platform bus___).
-
-2. Драйвер запрашивает устройство с таким же именем на шине.
- ```C
-static struct platform_driver myled_driver = {
-	.driver = {
-        	.name = DRIVER_NAME,
-         	.owner = THIS_MODULE,
-            	.of_match_table = myled_of_match},
-     	.probe = myled_probe,
-     	.remove = myled_remove,
-     	.shutdown = myled_shutdown
-};
- ```
-Самая важная здесь строчка `.of_match_table = myled_of_match`. Благодаря ей драйвер понимает какое устройство он ищет на шине.
-*** 
-- Вообще шины можно разделить на два типа.
-1. ___Discover-able___  
-Такие шины, как PCI и USB, имеют встроенную способность обнаружения внешнего устройства. Когда устройство подключено к шине, оно получает уникальный идентификатор, который будет использоваться для дальнейшей связи с процессором. Устройство, сидящее на шине PCI/ USB, может сообщить системе свое имя и где находятся его ресурсы (регистры и т.д). Таким образом, ядро автоматически понимает какие устройства ему доступны и каой использовать драйвер для найденного устройства.
-
-2. ___Non discover-able___  
-Embedded systems обычно не имеют сложных шин, которые могли бы автоматически найти устройство, которое присоединили к такой шине. Например: шины типа i2c или SPI. Таким образом, `Platform devices` сами по себе не поддаются обнаружению. Т.е. устройство не может сказать "Эй! Я присутствую!" программному обеспечению. Что делать?  
-Для это была введена ___виртуальная шина___ (___platform bus___). С одной стороны устройства подключаются к такой шине, а с другой - к шине присоединяются драйвера, которые запрашивают устройства с необходимым именем.
-
-- Рассмотрим сторой случай на примере.
-  
-- Начнем с объявления своей структуры данных. В ней определим ресурсы, используемые нашим устройством.
-```C
-struct test_platform_data {
-	char *name;
-	int id;
-	int bus_id;
-};
-```
-- Сейчас я заполню экземпляр этой структуры соответствующими данными.
-```C
-static struct test_platform_data = {
-	.name = "test device data",
-	.id = 0,
-	.bus_id = -1,
-};
-```
-- Теперь пришло время определить `Platform device`. В ядре Linux объявляется `struct platform_device` для регистрации устройства.
-```C
-ststic struct platform_device drivertest_device = {
-	.name = "drivertest",
-	.id = 0,
-	.dev = {
-		.release = drivertest_device_release,
-		.platform_data = &psudo_data,
-	},
-};
-```
-___Важным моментом является название устройства___. В моем случае имя моего устройства "drivertest". С помощью функции, которая показана ниже, зарегистрируем устройство.
-
-```C
-platform_device_register(&drivertest_device);
-```
-- Структура `struct platfrom_driver` используется для регистрации драйвера для устройства.
-```C
-static struct platform_driver drivertest_driver = {
-	.driver = {
-		.name = "drivertest",
+ 
+ MODULE_DEVICE_TABLE(of, myled_of_match);
+ 
+ 
+ /* platform driver structure for myled driver */
+ static struct platform_driver myled_driver = {
+ 	.driver = {
+		.name = DRIVER_NAME,
 		.owner = THIS_MODULE,
-	},
-	.probe = drivertest_probe,
-	.remove = drivertest_remove,
-};
-```
-Имя драйвера должно совпадать с именем устройства. Linux kernel сравнивает имя драйвера с ранее определенным именем устройства. Если совпадение найдено, то вызывается функция `drivertest_probe`. Эта функция отвечает за инициализацию устройства. В приведенном ниже фрагменте показана подпрограмма для функции `drivertest_probe`.
-
-```C
-
-Дописываем с https://kerneltweaks.wordpress.com/2014/03/30/
-
-
-
-```
-
-
-
-_____________________________________________
-
-## Автозагрузка модуля
-Автоматическая загрузка модулей ядра это удобная функция, поддерживаемая в Linux.
-1. Во время компиляции информация о поддержке устройства генерируется в объекте модуля драйвера. Драйвер начинает идентифицировать устройства, которые он знает. Взгляните на драйвер, который поддерживает карту Xircom CardBus Ethernet (`drivers/net/tulip/xircom_cb.c`) и найдите этот фрагмент:
-
-```C
-static struct pci_device_id xircom_pci_table[] = {
-	{0x115D, 0x0003, PCI_ANY_ID, PCI_ANY_ID,},
-  	{0,},
+ 		.of_match_table = myled_of_match},
+	.probe = myled_probe,
+	.remove = myled_remove,
+	.shutdown = myled_shutdown
 };
 
-MODULE_DEVICE_TABLE(pci, xircom_pci_table);
-```
-Этот код показывает, что драйвер может поддерживать любую карту, имеющую __PCI vendor ID__ 0x115D и __PCI device ID__ 0x0003. Когда устанавливается модуль драйвера, утилита `depmod` просматривает изображение модуля и расшифровывает идентификаторы, присутствующие в таблице устройств. Затем эта утилита добавляет следующую запись в `/lib/modules/kernel-version/modules.alias` (__v обозначает VendorID, d обозначает DeviceID, sv обозначает subvendorID__):
-
-```console
-alias pci:v0000115Dd00000003sv*sd*bc*sc*i* xircom_cb
+/* Register myled platform driver */
+module_platform_driver(myled_driver);
 ```
 
-2. Когда вы включаете карту Xircom в гнездо CardBus, ядро генерирует событие ___uevent___, которое идентифицирует недавно добавленное устройство. Вы можете посмотреть созданные события с помощью `udevmonitor`:
-
-```console
-$ udevmonitor ––env
-...
-MODALIAS=pci:v0000115Dd00000003sv0000115Dsd00001181bc02sc00i00
-...
-```
-3. Затем `udevd` получает `uevents` через сетевые сокеты. Событие `udevd` вызывает `modprobe` с информацией `MODALIAS`, которую ядро передало `udevd`:
-
-```console
-modprobe pci:v0000115Dd00000003sv0000115Dsd00001181bc02sc00i00
-```
-
-4. `modprobe` ищет совпадение в `/lib/modules/kernel-version/modules.alias` и переходит к вставленному `xircom_cb`:
-
-```console
-$ lsmod
-Module      Size   Used by
-xircom_cb   10433  0
-...
-```
-
-После этого карта готова к использованию.
-
-
-_____________________________________________
+______________________________________________
 
 <h1 align="center">Linux Data Structures</h1>
 
@@ -373,32 +455,6 @@ _____________________________________________
 
 Код для связывания устройства с драйвером приведен ниже.
 
-```C
-#define DRIVER_NAME "myled"
-....
-
-/* device match table to match with device node in device tree */
-static const struct of_device_id myled_of_match[] = {
-	{.compatible = "xlnx,myled-1.0"},
-     	{},
-};
- 
- THIS_MODULE,
-            	.of_match_table = myled_of_match},
-     	.probe = myled_probe,
-     	.remove = myled_MODULE_DEVICE_TABLE(of, myled_of_match);
- 
-/* platform driver structure for myled driver */
-static struct platform_driver myled_driver = {
-	.driver = {
-        	.name = DRIVER_NAME,
-         	.owner =remove,
-     	.shutdown = myled_shutdown
-};
-
-/* Register myled platform driver */
-module_platform_driver(myled_driver);
-```
 
 
 
